@@ -147,6 +147,67 @@ class TestHostHeaderMiddleware:
         # Should get through to the status endpoint, not a 400
         assert resp.status_code != 400
 
+    def test_public_url_host_is_accepted(self, monkeypatch):
+        """When the dashboard declares a public URL, the Host header
+        from that URL should be accepted even though the server is bound
+        locally."""
+        from fastapi.testclient import TestClient
+        import hermes_cli.web_server as ws
+
+        monkeypatch.setattr(ws.app.state, "bound_host", "127.0.0.1", raising=False)
+        monkeypatch.setattr(
+            ws.app.state,
+            "public_host",
+            "jamess-m5-macbook-air.tail49b05.ts.net",
+            raising=False,
+        )
+
+        client = TestClient(ws.app)
+        resp = client.get(
+            "/api/status",
+            headers={"Host": "jamess-m5-macbook-air.tail49b05.ts.net"},
+        )
+        assert resp.status_code != 400, resp.text
+
+    def test_start_server_caches_public_host_from_public_url(self, monkeypatch):
+        """The startup path should derive and cache the public hostname
+        once, so request-time checks don't need to re-parse config."""
+        import uvicorn
+        import hermes_cli.web_server as ws
+
+        monkeypatch.setattr(ws, "resolve_public_url", lambda: "https://jamess-m5-macbook-air.tail49b05.ts.net")
+        monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: None)
+
+        ws.start_server(host="127.0.0.1", port=9119, open_browser=False)
+        assert ws.app.state.public_host == "jamess-m5-macbook-air.tail49b05.ts.net"
+
+    def test_public_url_websocket_host_and_origin_are_accepted(self, monkeypatch):
+        """WebSocket upgrades must accept the declared public URL too,
+        otherwise the dashboard loads but live updates fail."""
+        from fastapi.testclient import TestClient
+
+        import hermes_cli.web_server as ws
+
+        monkeypatch.setattr(ws.app.state, "bound_host", "127.0.0.1", raising=False)
+        monkeypatch.setattr(ws, "_DASHBOARD_EMBEDDED_CHAT_ENABLED", True)
+        monkeypatch.setattr(
+            ws.app.state,
+            "public_host",
+            "jamess-m5-macbook-air.tail49b05.ts.net",
+            raising=False,
+        )
+
+        client = TestClient(ws.app)
+        url = f"/api/events?token={ws._SESSION_TOKEN}&channel=security-test"
+        with client.websocket_connect(
+            url,
+            headers={
+                "Host": "jamess-m5-macbook-air.tail49b05.ts.net",
+                "Origin": "https://jamess-m5-macbook-air.tail49b05.ts.net",
+            },
+        ):
+            pass
+
 
 class TestWebSocketHostOriginGuard:
     """WebSocket upgrades must enforce the same dashboard boundary as HTTP."""

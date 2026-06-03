@@ -56,6 +56,7 @@ from hermes_cli.config import (
     recommended_update_command_for_method,
     redact_key,
 )
+from hermes_cli.dashboard_auth.prefix import resolve_public_url
 from gateway.status import get_running_pid, read_runtime_status
 from utils import env_var_enabled
 
@@ -270,9 +271,41 @@ def _is_accepted_host(host_header: str, bound_host: str) -> bool:
     return host_only == bound_lc
 
 
+def _public_host_from_public_url(public_url: str) -> str:
+    """Return the hostname component of the declared public URL.
+
+    ``dashboard.public_url`` is the operator-declared external authority,
+    so the dashboard may accept its hostname in addition to the loopback
+    bind host when validating Host / Origin headers.
+    """
+    if not public_url:
+        return ""
+    try:
+        parsed = urllib.parse.urlparse(public_url)
+    except ValueError:
+        return ""
+    if parsed.scheme not in {"http", "https"}:
+        return ""
+    if not parsed.hostname:
+        return ""
+    return parsed.hostname.lower()
+
+
+def _dashboard_allowed_hosts(app_state) -> tuple[str, ...]:
+    """Return the explicit hosts the dashboard should trust."""
+    hosts = []
+    bound_host = getattr(app_state, "bound_host", None)
+    if bound_host:
+        hosts.append(bound_host)
+    public_host = getattr(app_state, "public_host", None)
+    if public_host and public_host not in hosts:
+        hosts.append(public_host)
+    return tuple(hosts)
+
+
 @app.middleware("http")
 async def host_header_middleware(request: Request, call_next):
-    """Reject requests whose Host header doesn't match the bound interface.
+    """Reject requests whose Host header doesn't match the trusted hosts.
 
     Defends against DNS rebinding: a victim browser on a localhost
     dashboard is tricked into fetching from an attacker hostname that
@@ -280,14 +313,17 @@ async def host_header_middleware(request: Request, call_next):
     the browser now treats the attacker origin as same-origin with the
     dashboard. Host-header validation at the app layer catches it.
 
+    The operator can additionally declare a canonical external public
+    URL in dashboard.public_url; that hostname is also accepted so
+    Tailscale Serve / reverse proxy deployments can use the clean public
+    host without weakening the loopback bind protection.
+
     See GHSA-ppp5-vxwm-4cf7.
     """
-    # Store the bound host on app.state so this middleware can read it —
-    # set by start_server() at listen time.
-    bound_host = getattr(app.state, "bound_host", None)
-    if bound_host:
+    allowed_hosts = _dashboard_allowed_hosts(request.app.state)
+    if allowed_hosts:
         host_header = request.headers.get("host", "")
-        if not _is_accepted_host(host_header, bound_host):
+        if not any(_is_accepted_host(host_header, host) for host in allowed_hosts):
             return JSONResponse(
                 status_code=400,
                 content={
@@ -6934,14 +6970,6 @@ def _ws_client_is_allowed(ws: "WebSocket") -> bool:
     :func:`_ws_host_origin_is_allowed`, which mirrors the HTTP layer and
     requires the Host header to match the bound interface — the same
     defence ``_is_accepted_host`` applies to non-loopback HTTP requests.
-
-    Gated mode: any peer is allowed — uvicorn's ``proxy_headers=True``
-    (enabled when the OAuth gate is active so cookies can pick up
-    ``X-Forwarded-Proto``) rewrites ``ws.client.host`` to the
-    X-Forwarded-For value, which is the real internet client IP. The
-    OAuth gate + single-use ``?ticket=`` is the auth at that point; the
-    Host/Origin guard in :func:`_ws_host_origin_is_allowed` is what
-    blocks DNS-rebinding here, not the peer IP.
     """
     if getattr(app.state, "auth_required", False):
         return True
@@ -6968,12 +6996,12 @@ def _ws_host_origin_is_allowed(ws: "WebSocket") -> bool:
     header on WebSocket handshakes; when present, require it to target the
     same bound dashboard host.
     """
-    bound_host = getattr(app.state, "bound_host", None)
-    if not bound_host:
+    allowed_hosts = _dashboard_allowed_hosts(ws.app.state)
+    if not allowed_hosts:
         return True
 
     host_header = ws.headers.get("host", "")
-    if not _is_accepted_host(host_header, bound_host):
+    if not any(_is_accepted_host(host_header, host) for host in allowed_hosts):
         return False
 
     origin = ws.headers.get("origin", "")
@@ -6989,24 +7017,18 @@ def _ws_host_origin_is_allowed(ws: "WebSocket") -> bool:
         #   * loopback bind          → legacy dashboard session token
         #   * non-loopback --insecure → legacy session token (Tailscale / LAN)
         #   * OAuth-gated public bind → single-use, 30s-TTL, identity-bound
-        #     ?ticket= minted at the cookie-authed POST /api/auth/ws-ticket
+        #     ?ticket= minted at the POST /api/auth/ws-ticket
         # A non-web origin can only be produced by a native client (the desktop
         # shell); a DNS-rebinding attack always arrives from an http(s) origin
         # and is still match-checked against the bound host below. So once the
         # credential check upstream has passed, the Origin guard adds nothing
         # for a non-web origin — trust it in every mode.
-        #
-        # (Earlier revisions restricted this to loopback, then to non-gated
-        # binds; both excluded the packaged desktop talking to a remote
-        # OAuth-gated gateway, whose file:// renderer origin then got rejected
-        # at the WS upgrade even with a valid ticket. The ticket is the gate,
-        # not the origin.)
         return True
 
     if not parsed.netloc:
         return False
 
-    return _is_accepted_host(parsed.netloc, bound_host)
+    return any(_is_accepted_host(parsed.netloc, host) for host in allowed_hosts)
 
 
 def _ws_request_is_allowed(ws: "WebSocket") -> bool:
@@ -8577,6 +8599,7 @@ def start_server(
     # PTY child uses to publish events to the dashboard sidebar.
     app.state.bound_host = host
     app.state.bound_port = port
+    app.state.public_host = _public_host_from_public_url(resolve_public_url())
 
     if open_browser:
         import webbrowser

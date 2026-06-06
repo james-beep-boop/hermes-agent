@@ -68,6 +68,24 @@ hermes-agent/
 `gateway.log` when running the gateway. Profile-aware via `get_hermes_home()`.
 Browse with `hermes logs [--follow] [--level ...] [--session ...]`.
 
+## MacBook Air M5 Startup / Update Path
+
+On this machine, keep the split simple and stable:
+
+- Canonical code checkout: `/Users/james/Documents/GitHub/hermes-agent`
+- `~/.hermes` is for runtime state, config, logs, auth, and other machine-local data only
+- Do not recreate or keep a second code checkout under `~/.hermes/hermes-agent`
+- Launchd services should use the base uv interpreter plus an explicit `PYTHONPATH`, not the repo venv interpreter directly
+- For the dashboard, launchd currently uses `/Users/james/.local/share/uv/python/cpython-3.11-macos-aarch64-none/bin/python3.11 -m hermes_cli.main dashboard ...`
+  - `PYTHONPATH` must include both `/Users/james/Documents/GitHub/hermes-agent` and `/Users/james/Documents/GitHub/hermes-agent/.venv/lib/python3.11/site-packages`
+  - Do not set `VIRTUAL_ENV` for launchd on this machine; it can cause Python to try to read `/Users/james/Documents/GitHub/hermes-agent/.venv/pyvenv.cfg` and fail under launchd
+- The dashboard is intended to listen on `127.0.0.1:9119` and be exposed via the Tailscale hostname `https://jamess-m5-macbook-air.tail49b05.ts.net`
+- Keep `dashboard.public_url` in `~/.hermes/config.yaml` pointed at that Tailscale hostname so the dashboard can generate correct external links
+- Verified working path: `/sessions` served HTML successfully through the Tailscale hostname when launchd used the repo venv and the built web assets
+- Dashboard version comes from `hermes_cli.__version__` / `pyproject.toml`
+- This checkout now tracks `upstream/main` as the source of newest code; use `git fetch upstream && git merge --no-ff upstream/main` to update, then restart launchd and verify the version again
+- At the time of this note the running checkout is `0.16.0`
+
 ## TypeScript Style
 
 Applies to TypeScript across Hermes: desktop, TUI, website, and future TS packages.

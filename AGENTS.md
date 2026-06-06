@@ -86,6 +86,23 @@ On this machine, keep the split simple and stable:
 - This checkout now tracks `upstream/main` as the source of newest code; use `git fetch upstream && git merge --no-ff upstream/main` to update, then restart launchd and verify the version again
 - At the time of this note the running checkout is `0.16.0`
 
+## MacBook Air Backup Note
+
+When recovering this machine, back up the code in git and back up the machine-specific Hermes files separately.
+
+- Code lives in git at `/Users/james/Documents/GitHub/hermes-agent`
+- Machine-specific config/state lives under `~/.hermes`
+- Launchd startup is handled by:
+  - `/Users/james/Library/LaunchAgents/ai.hermes.dashboard.plist`
+  - `/Users/james/Library/LaunchAgents/ai.hermes.gateway.plist`
+- Local helper shims that are worth preserving:
+  - `/Users/james/.local/bin/hermes`
+  - `/Users/james/.local/bin/git-credential-ghdesktop`
+- Backup script:
+  - `/Users/james/Documents/GitHub/hermes-agent/scripts/backup-hermes-mac.sh`
+  - It archives the Hermes config file, the two LaunchAgents plists, and the two helper shims, and writes a manifest with repo metadata and restore notes
+- Backup destination default: `~/Backups/hermes/<timestamp>/`
+
 ## TypeScript Style
 
 Applies to TypeScript across Hermes: desktop, TUI, website, and future TS packages.

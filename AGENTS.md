@@ -299,6 +299,7 @@ When recovering this machine, back up the code in git and back up the machine-sp
   - `/Users/james/Documents/GitHub/hermes-agent/scripts/backup-hermes-mac.sh`
   - It archives the Hermes config file, the two LaunchAgents plists, and the two helper shims, and writes a manifest with repo metadata and restore notes
 - Backup destination default: `~/Backups/hermes/<timestamp>/`
+
 ## TypeScript Style
 
 Applies to TypeScript across Hermes: desktop, TUI, website, and future TS packages.

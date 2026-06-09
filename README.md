@@ -174,6 +174,19 @@ See `hermes claw migrate --help` for all options, or use the `openclaw-migration
 
 ---
 
+## Local model smarts scoring
+
+If you have a Hermes rerun artifact, score it with the heuristic "smarts" ranking:
+
+```bash
+python scripts/score_model_smarts.py path/to/results.csv
+python scripts/score_model_smarts.py --json path/to/local-model-rerun.raw.json
+```
+
+The command accepts one or more CSV or raw JSON artifacts and prints a ranked table by default.
+
+---
+
 ## Contributing
 
 We welcome contributions! See the [Contributing Guide](https://hermes-agent.nousresearch.com/docs/developer-guide/contributing) for development setup, code style, and PR process.

@@ -176,6 +176,18 @@ class TestGeminiContextLength:
         assert ctx == 1048576
 
 
+class TestGemma4MlxCompatibility:
+    def test_mlx_gemma_4_12b_it_4bit_routes_and_context(self):
+        model = "mlx-community/gemma-4-12B-it-4bit"
+        bare_model = "gemma-4-12B-it-4bit"
+
+        assert detect_vendor(bare_model) == "google"
+        assert normalize_model_for_provider(model, "custom") == model
+        assert normalize_model_for_provider(bare_model, "openrouter") == f"google/{bare_model}"
+        assert get_model_context_length(bare_model, provider="custom") == 256000
+        assert get_model_context_length(model, provider="custom") == 256000
+
+
 # ── Agent Init (no SyntaxError) ──
 
 class TestGeminiAgentInit:

@@ -19,6 +19,7 @@ depend on:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 
@@ -27,6 +28,7 @@ from hermes_cli.inventory import (
     build_models_payload,
     load_picker_context,
 )
+from hermes_cli.models import provider_model_ids
 
 
 # ─── load_picker_context ───────────────────────────────────────────────
@@ -378,3 +380,26 @@ def test_payload_shape_compatible_with_modelpickerdialog_frontend():
     for row in payload["providers"]:
         missing = required_keys - row.keys()
         assert not missing, f"row {row['slug']} missing keys: {missing}"
+
+
+def test_lmstudio_static_fallback_exposes_local_mlx_models():
+    """The dashboard's models tab should surface the local MLX comparison set
+    even when the LM Studio /v1/models discovery path is unavailable.
+    """
+    fake_profile = SimpleNamespace(
+        auth_type="api_key",
+        base_url="http://127.0.0.1:1234/v1",
+        fallback_models=[],
+    )
+    with patch("providers.get_provider_profile", return_value=fake_profile), \
+         patch("hermes_cli.models.fetch_api_models", return_value=[]):
+        models = provider_model_ids("lmstudio")
+    for model_id in [
+        "mlx-community/gemma-4-12B-it-4bit",
+        "mlx-community/Qwen2.5-7B-Instruct-4bit",
+        "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+        "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+        "mlx-community/gemma-4-e4b-it-OptiQ-4bit",
+        "mlx-community/Llama-3.2-1B-Instruct-4bit",
+    ]:
+        assert model_id in models

@@ -211,6 +211,17 @@ _PROVIDER_MODELS: dict[str, list[str]] = {
         "gpt-4o",
         "gpt-4o-mini",
     ],
+    # Local MLX / OpenAI-compatible servers surfaced through the LM Studio
+    # provider so the dashboard's model picker offers the same comparison set
+    # we use in local benchmark runs.
+    "lmstudio": [
+        "mlx-community/gemma-4-12B-it-4bit",
+        "mlx-community/Qwen2.5-7B-Instruct-4bit",
+        "mlx-community/Mistral-Nemo-Instruct-2407-4bit",
+        "mlx-community/Meta-Llama-3.1-8B-Instruct-4bit",
+        "mlx-community/gemma-4-e4b-it-OptiQ-4bit",
+        "mlx-community/Llama-3.2-1B-Instruct-4bit",
+    ],
     "openai-codex": _codex_curated_models(),
     "xai-oauth": _xai_curated_models(),
     "copilot-acp": [

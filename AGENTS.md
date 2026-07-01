@@ -270,6 +270,8 @@ On this machine, keep the split simple and stable:
 - Canonical code checkout: `/Users/james/Documents/GitHub/hermes-agent`
 - `~/.hermes` is for runtime state, config, logs, auth, and other machine-local data only
 - Do not recreate or keep a second code checkout under `~/.hermes/hermes-agent`
+- This machine is the **MacBook Air M5 with 24GB RAM**; it is on Tailscale and should stay reachable by hostname via the `tail49b05.ts.net` tailnet
+- The current always-relevant machine inventory is: this MacBook Air M5, `mac-mini`, `rock5b`, and `jhm-spark`
 - Launchd services should use the base uv interpreter plus an explicit `PYTHONPATH`, not the repo venv interpreter directly
 - For the dashboard, launchd currently uses `/Users/james/.local/share/uv/python/cpython-3.11-macos-aarch64-none/bin/python3.11 -m hermes_cli.main dashboard ...`
   - `PYTHONPATH` must include both `/Users/james/Documents/GitHub/hermes-agent` and `/Users/james/Documents/GitHub/hermes-agent/.venv/lib/python3.11/site-packages`

@@ -13,6 +13,9 @@ import time
 from pathlib import Path
 
 from tools.environments.base import BaseEnvironment, _pipe_stdin
+from tools.environments.secret_filters import (
+    is_hermes_internal_secret as _is_hermes_internal_secret,
+)
 from hermes_cli._subprocess_compat import windows_hide_flags
 
 _IS_WINDOWS = platform.system() == "Windows"
@@ -224,51 +227,6 @@ _HERMES_PROVIDER_ENV_BLOCKLIST = _build_provider_env_blocklist()
 # Hermes venv stays reachable via PATH (its bin dir is first), so stripping
 # these markers is safe and only prevents the cross-project clobber (#23473).
 _ACTIVE_VENV_MARKER_VARS = ("VIRTUAL_ENV", "CONDA_PREFIX")
-
-
-def _is_hermes_internal_secret(key: str) -> bool:
-    """Return True for Hermes-internal secrets injected under *dynamic* names.
-
-    ``_HERMES_PROVIDER_ENV_BLOCKLIST`` is name-based and derived from the
-    provider/tool registries, but the gateway and CLI also inject secrets into
-    ``os.environ`` at runtime under names no static registry knows about:
-
-    - ``AUXILIARY_<TASK>_API_KEY`` / ``AUXILIARY_<TASK>_BASE_URL`` — per-task
-      side-LLM credentials bridged from ``config.yaml[auxiliary]`` by
-      ``gateway/run.py`` and ``cli.py`` (vision, web_extract, approval,
-      compression, and any plugin-registered auxiliary task). These are
-      separate, often higher-spend API keys plus base URLs that may point at
-      private endpoints; a model-authored shell command must never see them.
-    - ``GATEWAY_RELAY_*_SECRET`` / ``GATEWAY_RELAY_*_KEY`` /
-      ``GATEWAY_RELAY_*_TOKEN`` — relay-auth material provisioned by the
-      gateway (``GATEWAY_RELAY_SECRET``, ``GATEWAY_RELAY_DELIVERY_KEY``).
-      These are Tier-1 gateway secrets, like the messaging bot tokens in
-      ``_ALWAYS_STRIP_KEYS``. Non-secret ``GATEWAY_RELAY_*`` routing hints
-      (``GATEWAY_RELAY_URL``, ``GATEWAY_RELAY_PLATFORMS``, …) are NOT matched
-      and remain visible.
-
-    ``code_execution_tool.py`` already catches these via substring matching on
-    ``KEY`` / ``SECRET`` / ``TOKEN``; the terminal backend's narrower name-based
-    blocklist did not, which is the leak this predicate closes.
-
-    This is the single source of truth for "Hermes-internal dynamic secret"
-    across every spawn path — the terminal ``_make_run_env`` /
-    ``_sanitize_subprocess_env`` filters, the Docker passthrough filter, and the
-    non-terminal :func:`hermes_subprocess_env` helper all call it, so the
-    dynamic patterns are stripped **unconditionally** regardless of
-    ``env_passthrough`` skill registration or ``inherit_credentials``. Nothing
-    a model-driving CLI legitimately needs matches these patterns.
-    """
-    upper = key.upper()
-    if upper.startswith("AUXILIARY_") and (
-        upper.endswith("_API_KEY") or upper.endswith("_BASE_URL")
-    ):
-        return True
-    if upper.startswith("GATEWAY_RELAY_") and (
-        upper.endswith("_SECRET") or upper.endswith("_KEY") or upper.endswith("_TOKEN")
-    ):
-        return True
-    return False
 
 
 def _inject_context_hermes_home(env: dict) -> None:

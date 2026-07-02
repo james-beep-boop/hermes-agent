@@ -102,3 +102,8 @@ class TestFindDocker:
         with patch("tools.environments.docker.shutil.which", side_effect=which_side_effect):
             result = docker_mod.find_docker()
         assert result == "/usr/bin/docker"
+
+
+def test_docker_module_imports_internal_secret_filter():
+    """Docker env module should import without circularly depending on local.py."""
+    assert docker_mod.is_hermes_internal_secret("AUXILIARY_VISION_API_KEY")

@@ -23,6 +23,8 @@ import logging
 from contextvars import ContextVar
 from typing import Iterable
 from hermes_cli.config import cfg_get
+from tools.environments.local import _HERMES_PROVIDER_ENV_BLOCKLIST
+from tools.environments.secret_filters import is_hermes_internal_secret
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +68,7 @@ def _is_hermes_provider_credential(name: str) -> bool:
     let a skill tunnel a Hermes credential into the execute_code child.
     """
     try:
-        from tools.environments.local import (
-            _HERMES_PROVIDER_ENV_BLOCKLIST,
-            _is_hermes_internal_secret,
-        )
+        _ = _HERMES_PROVIDER_ENV_BLOCKLIST
     except Exception as e:
         logger.warning(
             "env passthrough: provider credential blocklist import failed; "
@@ -83,7 +82,7 @@ def _is_hermes_provider_credential(name: str) -> bool:
     # credentials the static blocklist can't enumerate — they're injected per
     # task/relay at gateway startup. A skill must not be able to register them
     # as passthrough and tunnel them into an execute_code / terminal child.
-    if _is_hermes_internal_secret(name):
+    if is_hermes_internal_secret(name):
         return True
     return name in _HERMES_PROVIDER_ENV_BLOCKLIST
 
